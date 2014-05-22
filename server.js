@@ -1,30 +1,91 @@
-'use strict';
+// server.js
 
-/**
- * Module dependencies.
- */
-var mongoose = require('mongoose'),
-    passport = require('passport'),
-    logger = require('mean-logger');
+	// set up ========================
+	var express  = require('express');
+	var app      = express(); 								// create our app w/ express
+	var mongoose = require('mongoose'); 					// mongoose for mongodb
 
-/**
- * Main application entry file.
- * Please note that the order of loading is important.
- */
+	// configuration =================
 
-// Initializing system variables
-var config = require('./server/config/config');
-var db = mongoose.connect(config.db);
+	mongoose.connect('mongodb://root:root@novus.modulusmongo.net:27017/Apyjin9a'); 	// connect to mongoDB database on modulus.io
 
-// Bootstrap Models, Dependencies, Routes and the app as an express app
-var app = require('./server/config/system/bootstrap')(passport, db);
+	app.configure(function() {
+		app.use(express.static(__dirname + '/public')); 		// set the static files location /public/img will be /img for users
+		app.use(express.logger('dev')); 						// log every request to the console
+		app.use(express.bodyParser()); 							// pull information from html in POST
+	});
 
-// Start the app by listening on <port>, optional hostname
-app.listen(config.port, config.hostname);
-console.log('Mean app started on port ' + config.port + ' (' + process.env.NODE_ENV + ')');
 
-// Initializing logger
-logger.init(app, passport, mongoose);
+	// define model =================
 
-// Expose app
-exports = module.exports = app;
+	var Todo = mongoose.model('Todo', {
+	text : String
+	});
+
+
+	// listen (start app with node server.js) =================================
+
+	app.listen(8080);
+	console.log("App listening on port 8080");
+
+
+	// routes ======================================================================
+
+	// api ---------------------------------------------------------------------
+	// get all todos
+	app.get('/api/todos', function(req, res) {
+
+		// use mongoose to get all todos in the database
+		Todo.find(function(err, todos) {
+
+			// if there is an error retrieving, send the error. nothing after res.send(err) will execute
+			if (err)
+				res.send(err)
+
+			res.json(todos); // return all todos in JSON format
+		});
+	});
+
+	// create todo and send back all todos after creation
+	app.post('/api/todos', function(req, res) {
+
+		// create a todo, information comes from AJAX request from Angular
+		Todo.create({
+			text : req.body.text,
+			done : false
+		}, function(err, todo) {
+			if (err)
+				res.send(err);
+
+			// get and return all the todos after you create another
+			Todo.find(function(err, todos) {
+				if (err)
+					res.send(err)
+				res.json(todos);
+			});
+		});
+
+	});
+
+	// delete a todo
+	app.delete('/api/todos/:todo_id', function(req, res) {
+		Todo.remove({
+			_id : req.params.todo_id
+		}, function(err, todo) {
+			if (err)
+				res.send(err);
+
+			// get and return all the todos after you create another
+			Todo.find(function(err, todos) {
+				if (err)
+					res.send(err)
+				res.json(todos);
+			});
+		});
+	});
+
+	// application -------------------------------------------------------------
+	app.get('*', function(req, res) {
+		res.sendfile('./public/index.html'); // load the single view file (angular will handle the page changes on the front-end)
+	});
+
